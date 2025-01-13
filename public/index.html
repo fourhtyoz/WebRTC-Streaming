@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Peer-to-Peer Streaming</title>
+</head>
+<body>
+    <h1>WebRTC Streaming</h1>
+    <div>
+        <h3>Local:</h3>
+        <video id="localVideo" autoplay muted></video>
+    </div>
+    <div>
+        <h3>Remote:</h3>
+        <video id="remoteVideo" autoplay></video>
+    </div>
+    <button id="startStream">Start Stream</button>
+    <button id="viewStream">View Stream</button>
+
+    <script>
+    const signalingServer = new WebSocket('wss://cb06-79-137-205-150.ngrok-free.app');
+    // const signalingServer = new WebSocket('ws://localhost:8000');
+
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+
+    const startStreamButton = document.getElementById('startStream');
+    const viewStreamButton = document.getElementById('viewStream'); 
+
+    let peerConnection;
+    let localStream;
+
+    signalingServer.onmessage = async (message) => {
+        if (message.data instanceof Blob) {
+            const text = await message.data.text();
+            try {
+                const data = JSON.parse(text);
+                handleSignalingData(data);
+            } catch (e) {
+                console.log('signalingServer.onmessage error on parsing [JSON BLOB]')
+            }
+        } else {
+            try {
+                const data = JSON.parse(message.data);
+                handleSignalingData(data);
+            } catch (e) {
+                console.log('signalingServer.onmessage error on parsing JSON [NOT BLOB]')
+            }
+        }
+    };
+
+    async function handleSignalingData(data) {
+        if (data.offer) {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+            
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            signalingServer.send(JSON.stringify({ answer }));
+        }
+
+        if (data.answer) {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        }
+
+        if (data.candidate) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+    }
+
+
+    function createPeerConnection() {
+        peerConnection = new RTCPeerConnection();
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                signalingServer.send(JSON.stringify({ candidate: event.candidate }));
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            remoteVideo.srcObject = event.streams[0];
+        };
+
+        return peerConnection;
+    }
+
+    async function startStream() {
+        peerConnection = createPeerConnection();
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        localStream.getTracks().forEach((track) => {
+            const sender = peerConnection.addTrack(track, localStream)
+            if (track?.kind === 'video') {
+                const params = peerConnection.getSenders()[0].getParameters()
+                params.encodings[0].maxBitrate = 1_000_000_0 // 10 Mbps
+                try {
+                    sender.setParameters(params)
+                } catch (e) {
+                    console.log('raising maxBitrate error: ', e)
+                }
+            }
+        })
+
+        localVideo.srcObject = localStream;
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        signalingServer.send(JSON.stringify({ offer }));
+    }
+
+    async function viewStream() {
+        peerConnection = createPeerConnection();
+    }
+
+    startStreamButton.onclick = startStream;
+    viewStreamButton.onclick = viewStream;
+    </script>
+</body>
+</html>
