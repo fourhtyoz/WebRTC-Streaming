@@ -23,5 +23,5 @@ wss.on('connection', (ws) => {
 });
 
 server.listen(8000, () => {
-    console.log('Server running on http://localhost:8000');
+    console.log('Server is running on http://localhost:8000');
 });

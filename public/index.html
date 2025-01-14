@@ -19,9 +19,9 @@
     <button id="viewStream">View Stream</button>
 
     <script>
-    const signalingServer = new WebSocket('wss://cb06-79-137-205-150.ngrok-free.app');
-    // const signalingServer = new WebSocket('ws://localhost:8000');
-
+    
+    const signalingServer = new WebSocket('ws://localhost:8000');
+    
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
 
@@ -93,7 +93,7 @@
             const sender = peerConnection.addTrack(track, localStream)
             if (track?.kind === 'video') {
                 const params = peerConnection.getSenders()[0].getParameters()
-                params.encodings[0].maxBitrate = 1_000_000_0 // 10 Mbps
+                params.encodings[0].maxBitrate = 1_000_000_00 // 10 Mbps
                 try {
                     sender.setParameters(params)
                 } catch (e) {
